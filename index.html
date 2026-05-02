@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Тренажёр произношения</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 700px;
+      margin: 30px auto;
+      padding: 20px;
+      text-align: center;
+      background: #f8f9fa;
+    }
+    h1 { color: #2c3e50; }
+    #target { 
+      font-size: 2.4rem; 
+      margin: 40px 0 20px; 
+      padding: 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      min-height: 80px;
+    }
+    #result {
+      font-size: 1.5rem;
+      min-height: 60px;
+      margin: 20px 0;
+      padding: 15px;
+      border: 2px dashed #3498db;
+      border-radius: 10px;
+    }
+    button {
+      font-size: 1.3rem;
+      padding: 14px 32px;
+      margin: 10px;
+      border: none;
+      border-radius: 50px;
+      cursor: pointer;
+      background: #3498db;
+      color: white;
+      box-shadow: 0 4px 0 #2980b9;
+    }
+    button:active { transform: translateY(2px); box-shadow: 0 2px 0 #2980b9; }
+    button.listening { background: #e74c3c; box-shadow: 0 4px 0 #c0392b; }
+    #score { font-weight: bold; font-size: 1.6rem; margin: 20px 0; }
+    #lang-select { font-size: 1.1rem; padding: 8px; margin: 10px; }
+  </style>
+</head>
+<body>
+
+  <h1>Тренажёр произношения</h1>
+
+  <select id="lang-select">
+    <option value="ru-RU">Русский</option>
+    <option value="en-US">English</option>
+    <option value="es-ES">Español</option>
+    <option value="fr-FR">Français</option>
+    <option value="de-de">Deutsch</option>
+  </select>
+
+  <div id="target">Нажми «Начать» и произнеси эту фразу</div>
+  
+  <button id="startBtn">Начать запись 🎤</button>
+  <button id="nextBtn" disabled>Следующая фраза →</button>
+  <button id="speakBtn">Прослушать фразу 🔊</button>
+  <div id="result">Здесь появится то, что услышал браузер…</div>
+  
+  <div id="score"></div>
+
+  <script>
+    const phrases = {
+      "ru-RU": [
+        "На берегу тусклого моря стоял рыбак.",
+        "Съешь же ещё этих мягких французских булок да выпей чаю.",
+        "Шла Саша по шоссе и сосала сушку.",
+        "Карл у Клары украл кораллы, а Клара у Карла украла кларнет.",
+        "Ехал Грека через реку, видит Грека — в реке рак."
+      ],
+      "en-US": [
+        "The quick brown fox jumps over the lazy dog.",
+        "How much wood would a woodchuck chuck if a woodchuck could chuck wood?",
+        "Peter Piper picked a peck of pickled peppers.",
+        "She sells seashells by the seashore.",
+        "Unique New York, unique New York."
+      ],
+	  "de-de":[
+	  "Hallo, wie geht es dir heute?",
+    "Die schnelle braune Füchsin springt über den faulen Hund.",
+    "Fischers Fritze fischt frische Fische.",
+    "Zehn zähe Ziegen zogen zehn Zentner Zucker zum Zoo.",
+    "Am Zehnten Zehnten um zehn Uhr zehn."
+	  ],
+	  "fr-FR": [
+    "Il était une fois dans un pays lointain.",
+    "Les chaussettes de l'archiduchesse sont-elles sèches?",
+    "Un chasseur sachant chasser sans son chien est un bon chasseur.",
+    "Si six scies scient six cyprès, six cents scies scient six cents cyprès."
+  ],
+  "es-ES": [
+    "Tres tristes tigres tragan trigo en un trigal.",
+    "Pablito clavó un clavito, ¿qué clavito clavó Pablito?",
+    "El perro de San Roque no tiene rabo porque Ramón Ramírez se lo ha robado.",
+    "Cómo como poco coco, poco coco como."
+  ]
+    };
+
+    let currentLang = "ru-RU";
+    let currentPhraseIndex = 0;
+
+    const targetDiv = document.getElementById("target");
+    const resultDiv = document.getElementById("result");
+    const scoreDiv = document.getElementById("score");
+    const startBtn = document.getElementById("startBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const langSelect = document.getElementById("lang-select");
+
+    // ─── Web Speech API ────────────────────────────────────────
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const speakBtn = document.getElementById("speakBtn");
+
+speakBtn.onclick = () => {
+  const utterance = new SpeechSynthesisUtterance(targetDiv.textContent);
+  utterance.lang = currentLang;
+  utterance.rate = 0.9;   // чуть медленнее для тренировки
+  speechSynthesis.speak(utterance);
+};
+    if (!SpeechRecognition) {
+      alert("Ваш браузер не поддерживает распознавание речи.\nПопробуйте Chrome / Edge.");
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = currentLang;
+
+    function updatePhrase() {
+      targetDiv.textContent = phrases[currentLang][currentPhraseIndex];
+      resultDiv.textContent = "";
+      scoreDiv.textContent = "";
+      nextBtn.disabled = true;
+    }
+
+    function calculateScore(text) {
+      const target = targetDiv.textContent.toLowerCase().replace(/[.,!?;:"«»]/g, "").trim();
+      const spoken = text.toLowerCase().replace(/[.,!?;:"«»]/g, "").trim();
+      
+      if (!spoken) return 0;
+      
+      const targetWords = target.split(/\s+/);
+      const spokenWords = spoken.split(/\s+/);
+      
+      let correct = 0;
+      for (let word of targetWords) {
+        if (spokenWords.includes(word)) correct++;
+      }
+      
+      return Math.round((correct / targetWords.length) * 100);
+    }
+
+    recognition.onresult = (e) => {
+      const transcript = Array.from(e.results)
+        .map(result => result[0].transcript)
+        .join("");
+      
+      resultDiv.textContent = transcript;
+      
+      if (e.results[0].isFinal) {
+        const score = calculateScore(transcript);
+        scoreDiv.innerHTML = `Совпадение: <span style="color:${score > 80 ? 'green' : score > 50 ? 'orange' : 'red'}">${score}%</span>`;
+        nextBtn.disabled = false;
+      }
+    };
+
+    recognition.onerror = (e) => {
+  let msg = "Ошибка распознавания: " + e.error;
+  if (e.error === "language-not-supported") {
+    msg += " — этот язык пока не поддерживается в твоём Chrome (регион/версия).";
+  } else if (e.error === "network") {
+    msg += " — проблема с сетью или серверами Google.";
+  }
+  resultDiv.textContent = msg;
+  startBtn.classList.remove("listening");
+};
+
+    recognition.onend = () => {
+      startBtn.classList.remove("listening");
+      startBtn.textContent = "Начать запись 🎤";
+    };
+
+    startBtn.addEventListener("click", () => {
+      if (startBtn.classList.contains("listening")) {
+        recognition.stop();
+      } else {
+        recognition.lang = currentLang;
+        recognition.start();
+        startBtn.classList.add("listening");
+        startBtn.textContent = "Остановить запись ⏹";
+        resultDiv.textContent = "Говорите...";
+      }
+    });
+
+    nextBtn.addEventListener("click", () => {
+      currentPhraseIndex = (currentPhraseIndex + 1) % phrases[currentLang].length;
+      updatePhrase();
+    });
+
+    langSelect.addEventListener("change", (e) => {
+      currentLang = e.target.value;
+      currentPhraseIndex = 0;
+      recognition.lang = currentLang;
+      updatePhrase();
+    });
+
+    // первая фраза
+    updatePhrase();
+  </script>
+</body>
+</html>
